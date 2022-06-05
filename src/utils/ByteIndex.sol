@@ -6,17 +6,13 @@ import "forge-std/console2.sol";
 
 contract ByteIndex {
 	bytes32 constant TOP = bytes32(uint256(1) << 255);
-	btes32 constant FOUND_SLOT = 0x0133337;
+	int256 constant FOUND_SLOT = (0x0133337);
 	struct Index {
-		mapping(bytes32 => bytes32) mask;
 		uint8 depth;
+		mapping(bytes32 => bytes32) mask;
 	}
 
-	function _append(
-		uint256 key_slot,
-		uint256 pos,
-		uint8 val
-	) internal pure returns (bytes32) {
+	function _append(uint256 pos, uint8 val) internal pure {
 		assembly {
 			let key := mload(FOUND_SLOT)
 			key := or(key, shl(pos, val))
@@ -45,7 +41,7 @@ contract ByteIndex {
 			pure
 			returns (bool, uint256) _determineRecursable,
 		function(bytes32) internal pure returns (bool) _determineRecursion
-	) internal returns (bool success, bytes32 found) {
+	) internal view returns (bool success, bytes32 found) {
 		uint256 shift = (index.depth - 1) / 8;
 		Locals memory locals;
 		bytes32 localsPtr;
@@ -58,7 +54,7 @@ contract ByteIndex {
 		for (uint256 i = 0; i < shift; i += 8) {
 			bytes32 partialKey;
 			assembly {
-				let _found := mload(found_slot)
+				let _found := mload(FOUND_SLOT)
 				partialKey := or(_found, shl(0xff, sub(shift, i)))
 			}
 			bytes32 mask = index.mask[partialKey];
@@ -100,7 +96,7 @@ contract ByteIndex {
 					/*
 					 * check if pathmapping has any values in the range we want
 					 */
-					(locals.recursable, locals.recursionStop) = _determineRecursable(
+					(locals.recursable, locals.stop) = _determineRecursable(
 						mask,
 						locals.maxBound,
 						i
@@ -127,12 +123,16 @@ contract ByteIndex {
 			//rewrite to memory
 			let _found := mload(FOUND_SLOT)
 			mstore(FOUND_SLOT, found)
-			found := shl(_found, sub(0x100, mul(index.depth, 8)))
+			found := shl(_found, sub(0x100, mul(sload(index.slot), 8)))
 		}
 		success = true;
 	}
 
-	function determineRecursionIfGreaterThan(bytes32 ptr) returns (bool res) {
+	function determineRecursionIfGreaterThan(bytes32 ptr)
+		internal
+		pure
+		returns (bool res)
+	{
 		Locals memory locals;
 		assembly {
 			locals := ptr
@@ -158,7 +158,7 @@ contract ByteIndex {
 		bytes32 mask,
 		uint256 bound,
 		uint256 i
-	) {
+	) internal pure returns (bool, uint256) {
 		if (uint256(mask) ^ bound < bound) {
 			return (true, i - 8);
 		}
